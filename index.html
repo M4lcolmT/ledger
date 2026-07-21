@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ledger — Budget Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<style>
+  /* Search input for expense transactions table.
+     Feel free to move this into css/style.css instead. */
+  .table-controls {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .search-input {
+    background: var(--bg-elevated, #1c1c1e);
+    border: 1px solid var(--border, #3a3a3c);
+    color: inherit;
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    min-width: 220px;
+  }
+  .search-input:focus {
+    outline: none;
+    border-color: var(--accent, #0A84FF);
+  }
+  #expenseTable th[data-field] {
+    user-select: none;
+    white-space: nowrap;
+  }
+  #expenseTable th[data-field]:hover {
+    color: var(--accent, #0A84FF);
+  }
+</style>
+</head>
+<body>
+
+<!-- PIN lock screen -->
+<div class="lock-overlay" id="lockOverlay">
+  <div class="lock-box">
+    <div class="lock-brand">
+      <span class="brand-mark">▍</span>
+      <span class="brand-name">Ledger</span>
+    </div>
+    <p class="muted">Enter your PIN to continue</p>
+    <input
+      id="lockInput"
+      class="lock-input"
+      type="password"
+      inputmode="numeric"
+      pattern="[0-9]*"
+      maxlength="4"
+      autocomplete="off"
+      placeholder="••••">
+    <div id="lockError" class="lock-error" hidden></div>
+    <button id="lockSubmit" class="modal-btn modal-btn-primary lock-submit">Unlock</button>
+  </div>
+</div>
+
+<div class="app">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="brand">
+      <span class="brand-mark">▍</span>
+      <span class="brand-name">Ledger</span>
+      <span class="mobile-status-dot" id="mobileStatusDot"></span>
+      <button class="mobile-refresh-btn" id="mobileRefreshBtn" aria-label="Refresh" title="Refresh data">
+        <span class="refresh-icon">⟳</span>
+      </button>
+      <button class="menu-toggle" id="menuToggle" aria-label="Menu">☰</button>
+    </div>
+    
+    <div class="nav-drawer" id="navDrawer">
+      <ul class="nav-list" id="navList">
+        <li><button class="nav-link active" data-page="accounts"><span class="nav-num">01</span>Accounts</button></li>
+        <li><button class="nav-link" data-page="investments"><span class="nav-num">02</span>Investments</button></li>
+        <li><button class="nav-link" data-page="expenses"><span class="nav-num">03</span>Expense Breakdown</button></li>
+        <li><button class="nav-link" data-page="income"><span class="nav-num">04</span>Income Breakdown</button></li>
+        <li><button class="nav-link" data-page="yearly"><span class="nav-num">05</span>Yearly Overview</button></li>
+        <li><button class="nav-link" data-page="budget"><span class="nav-num">06</span>Budgeting</button></li>
+      </ul>
+
+      <div class="sidebar-footer">
+        <div class="status-row">
+          <span class="dot" id="statusDot"></span>
+          <span id="statusText">Connecting…</span>
+        </div>
+        <button id="refreshBtn" class="refresh-btn" title="Refresh data">Refresh</button>
+      </div>
+    </div>
+  </nav>
+  <div class="nav-overlay" id="navOverlay" hidden></div>
+
+  <!-- Main -->
+  <main class="main">
+
+    <header class="topbar">
+      <div class="topbar-title">
+        <h1 id="pageTitle">Accounts</h1>
+        <p id="pageSubtitle" class="muted">Balances across your accounts and investments</p>
+      </div>
+      <div class="topbar-controls">
+        <label class="month-filter">
+          <span>Month</span>
+          <select id="monthSelect"></select>
+        </label>
+      </div>
+    </header>
+
+    <div id="errorBanner" class="error-banner" hidden></div>
+    <div id="toast" class="toast" hidden></div>
+
+    <!-- Accounts -->
+    <section class="page active" id="page-accounts">
+      <div class="stat-grid-header">
+        <button id="balanceVisibilityToggle" class="visibility-toggle" type="button" title="Show balances" aria-pressed="false">
+          <svg id="balanceVisibilityIcon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></svg>
+          <span class="visibility-toggle-label">Show balances</span>
+        </button>
+      </div>
+      <div class="stat-grid" id="accountsOverviewStats"></div>
+
+      <div class="card">
+        <div class="card-header-row">
+          <h3>Balance by account</h3>
+          <span class="muted" id="accountsBalanceChartNote"></span>
+        </div>
+        <div class="chart-wrap"><canvas id="accountsBalanceChart"></canvas></div>
+      </div>
+
+      <div class="budget-section" id="accountsSectionCash">
+        <div class="budget-section-header">
+          <h2>Cash &amp; Bank Accounts</h2>
+          <div class="budget-section-header-right">
+            <div class="budget-section-totals" id="accountsTotalsCash"></div>
+            <button class="add-btn" data-account-type="Account">+ Add account</button>
+          </div>
+        </div>
+        <div class="budget-cards" id="accountCardsCash"></div>
+      </div>
+    </section>
+
+    <!-- Investments -->
+    <section class="page" id="page-investments">
+      <div class="stat-grid" id="investmentsOverviewStats"></div>
+
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-header-row">
+            <h3>Portfolio value over time</h3>
+            <span class="muted" id="portfolioChartNote"></span>
+          </div>
+          <div class="chart-wrap"><canvas id="portfolioLineChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header-row">
+            <h3>Allocation</h3>
+            <span class="muted total-badge" id="investmentsAllocationBadge"></span>
+          </div>
+          <div class="chart-wrap"><canvas id="investmentsAllocationChart"></canvas></div>
+        </div>
+      </div>
+
+      <div class="budget-section" id="investmentsSection">
+        <div class="budget-section-header">
+          <h2>Investments</h2>
+          <div class="budget-section-header-right">
+            <div class="budget-section-totals" id="accountsTotalsInvestments"></div>
+            <button class="add-btn" data-account-type="Investment">+ Add investment</button>
+          </div>
+        </div>
+        <div class="budget-cards" id="accountCardsInvestments"></div>
+      </div>
+    </section>
+
+    <!-- Expense Breakdown -->
+    <section class="page" id="page-expenses">
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-header-row">
+            <h3>By category</h3>
+            <span class="muted total-badge" id="expenseTotalBadge"></span>
+          </div>
+          <div class="chart-wrap"><canvas id="expensePieChart"></canvas></div>
+        </div>
+        <div class="card">
+          <div class="card-header-row">
+            <h3>Subcategory breakdown</h3>
+            <select id="expenseCategorySelect" class="inline-select"></select>
+          </div>
+          <div class="chart-wrap"><canvas id="expenseSubBarChart"></canvas></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header-row">
+          <h3>Recurring expenses</h3>
+          <span class="muted total-badge" id="expenseRecurringBadge"></span>
+        </div>
+        <div class="table-wrap"><table id="expenseRecurringTable"><thead></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header-row">
+          <h3>Expense transactions this month</h3>
+          <div class="table-controls">
+            <input type="text" id="expenseSearchInput" class="search-input" placeholder="Search category, notes, account…">
+            <label class="page-size-filter">
+              <span>Show</span>
+              <select id="expensePageSize">
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="all">All</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="expenseTable"><thead></thead><tbody></tbody></table></div>
+        <div class="pagination" id="expensePagination"></div>
+      </div>
+    </section>
+
+    <!-- Income Breakdown -->
+    <section class="page" id="page-income">
+      <div class="grid grid-2">
+        <div class="card">
+          <div class="card-header-row">
+            <h3>By subcategory (Proceeds)</h3>
+            <span class="muted total-badge" id="incomeTotalBadge"></span>
+          </div>
+          <div class="chart-wrap"><canvas id="incomePieChart"></canvas></div>
+        </div>
+        <div class="card">
+          <h3 class="stat-label">Summary</h3>
+          <div class="stat-grid" id="incomeStats"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header-row">
+          <h3>Recurring income</h3>
+          <span class="muted total-badge" id="incomeRecurringBadge"></span>
+        </div>
+        <div class="table-wrap"><table id="incomeRecurringTable"><thead></thead><tbody></tbody></table></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header-row">
+          <h3>Income transactions this month</h3>
+          <div class="table-controls">
+            <input type="text" id="incomeSearchInput" class="search-input" placeholder="Search category, notes, account…">
+            <label class="page-size-filter">
+              <span>Show</span>
+              <select id="incomePageSize">
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+                <option value="all">All</option>
+              </select>
+            </label>
+          </div>
+        </div>
+        <div class="table-wrap"><table id="incomeTable"><thead></thead><tbody></tbody></table></div>
+        <div class="pagination" id="incomePagination"></div>
+      </div>
+    </section>
+
+    <!-- Yearly Overview -->
+    <section class="page" id="page-yearly">
+      <div class="stat-grid" id="yearlyStats"></div>
+      <div class="card">
+        <h3>Income vs expenses, monthly</h3>
+        <div class="chart-wrap chart-wrap-tall"><canvas id="yearlyLineChart"></canvas></div>
+      </div>
+      <div class="card">
+        <h3>Net savings per month</h3>
+        <div class="chart-wrap"><canvas id="yearlyBarChart"></canvas></div>
+      </div>
+    </section>
+
+    <!-- Budgeting -->
+    <section class="page" id="page-budget">
+      <div class="stat-grid" id="budgetStats"></div>
+
+      <div class="card attention-card" id="attentionCard" hidden>
+        <div class="card-header-row">
+          <h3>Attention needed</h3>
+        </div>
+        <div class="attention-list" id="attentionList"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header-row">
+          <h3>Allocation</h3>
+        </div>
+        <div class="allocation-bar" id="allocationBar"></div>
+        <div class="allocation-legend" id="allocationLegend"></div>
+        <p class="muted allocation-note" id="allocationIncomeNote"></p>
+        <div class="table-wrap">
+          <table id="budgetSummaryTable"><thead></thead><tbody></tbody></table>
+        </div>
+      </div>
+
+      <div class="budget-section" id="budgetSectionNeeds">
+        <div class="budget-section-header">
+          <h2>Needs</h2>
+          <div class="budget-section-header-right">
+            <div class="budget-section-totals" id="budgetTotalsNeeds"></div>
+            <button class="add-btn" data-type="Needs">+ Add</button>
+          </div>
+        </div>
+        <div class="budget-cards" id="budgetCardsNeeds"></div>
+      </div>
+
+      <div class="budget-section" id="budgetSectionWants">
+        <div class="budget-section-header">
+          <h2>Wants</h2>
+          <div class="budget-section-header-right">
+            <div class="budget-section-totals" id="budgetTotalsWants"></div>
+            <button class="add-btn" data-type="Wants">+ Add</button>
+          </div>
+        </div>
+        <div class="budget-cards" id="budgetCardsWants"></div>
+      </div>
+
+      <div class="budget-section" id="budgetSectionSavings">
+        <div class="budget-section-header">
+          <h2>Savings &amp; Investments</h2>
+          <div class="budget-section-header-right">
+            <div class="budget-section-totals" id="budgetTotalsSavings"></div>
+            <button class="add-btn" data-type="Savings">+ Add</button>
+          </div>
+        </div>
+        <div class="budget-cards" id="budgetCardsSavings"></div>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<!-- Budget add/edit modal -->
+<div class="modal-overlay" id="budgetModalOverlay" hidden>
+  <div class="modal" id="budgetModal">
+    <div class="modal-header">
+      <h3 id="budgetModalTitle">Add budget item</h3>
+    </div>
+
+    <div class="modal-body">
+      <div id="budgetModalError" class="modal-error" hidden></div>
+
+      <label class="modal-field">
+        <span>Type</span>
+        <select id="budgetFormType">
+          <option value="Needs">Needs</option>
+          <option value="Wants">Wants</option>
+          <option value="Savings">Savings &amp; Investments</option>
+        </select>
+      </label>
+
+      <label class="modal-field">
+        <span>Category</span>
+        <input id="budgetFormCategory" list="budgetCategoryOptions" autocomplete="off" placeholder="e.g. Housing">
+        <datalist id="budgetCategoryOptions"></datalist>
+      </label>
+
+      <label class="modal-field" id="budgetFormSubcategoryWrap">
+        <span>Subcategory</span>
+        <input id="budgetFormSubcategory" list="budgetSubcategoryOptions" autocomplete="off" placeholder="e.g. Rent">
+        <datalist id="budgetSubcategoryOptions"></datalist>
+      </label>
+
+      <label class="modal-field">
+        <span>Budgeted amount (RM)</span>
+        <input id="budgetFormAmount" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+      </label>
+    </div>
+
+    <div class="modal-footer">
+      <button id="budgetModalDelete" class="modal-btn modal-btn-danger" hidden>Delete</button>
+      <div class="modal-footer-right">
+        <button id="budgetModalCancel" class="modal-btn">Cancel</button>
+        <button id="budgetModalSave" class="modal-btn modal-btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Account add/edit modal -->
+<div class="modal-overlay" id="accountModalOverlay" hidden>
+  <div class="modal" id="accountModal">
+    <div class="modal-header">
+      <h3 id="accountModalTitle">Add account</h3>
+    </div>
+
+    <div class="modal-body">
+      <div id="accountModalError" class="modal-error" hidden></div>
+
+      <label class="modal-field">
+        <span>Type</span>
+        <select id="accountFormType">
+          <option value="Account">Cash / Bank account</option>
+          <option value="Investment">Investment</option>
+        </select>
+      </label>
+
+      <label class="modal-field">
+        <span>Name</span>
+        <input id="accountFormName" autocomplete="off" placeholder="e.g. Hong Leong Bank Debit Card">
+      </label>
+
+      <label class="modal-field">
+        <span>Prefix</span>
+        <input id="accountFormPrefix" autocomplete="off" placeholder="e.g. HLB">
+      </label>
+
+      <label class="modal-field">
+        <span>Initial balance (RM)</span>
+        <input id="accountFormInitialBalance" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+      </label>
+      <p class="muted account-modal-note">Prefix must match the exact "Account" value used in Transactions, or "From/To Account" in Transfers, so balances update automatically.</p>
+    </div>
+
+    <div class="modal-footer">
+      <button id="accountModalDelete" class="modal-btn modal-btn-danger" hidden>Delete</button>
+      <div class="modal-footer-right">
+        <button id="accountModalCancel" class="modal-btn">Cancel</button>
+        <button id="accountModalSave" class="modal-btn modal-btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Portfolio value entry modal -->
+<div class="modal-overlay" id="portfolioModalOverlay" hidden>
+  <div class="modal" id="portfolioModal">
+    <div class="modal-header">
+      <h3 id="portfolioModalTitle">Log portfolio value</h3>
+    </div>
+
+    <div class="modal-body">
+      <div id="portfolioModalError" class="modal-error" hidden></div>
+
+      <label class="modal-field">
+        <span>Month</span>
+        <select id="portfolioFormMonth"></select>
+      </label>
+
+      <label class="modal-field">
+        <span>Portfolio value (RM)</span>
+        <input id="portfolioFormValue" type="number" step="0.01" min="0" inputmode="decimal" placeholder="0.00">
+      </label>
+      <p class="muted account-modal-note">Enter the actual market value of this investment for the selected month — separate from how much you've transferred in, so gain/loss can be tracked.</p>
+    </div>
+
+    <div class="modal-footer">
+      <div class="modal-footer-right">
+        <button id="portfolioModalCancel" class="modal-btn">Cancel</button>
+        <button id="portfolioModalSave" class="modal-btn modal-btn-primary">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<script src="js/config.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/api.js"></script>
+<script src="js/lock.js"></script>
+<script src="js/charts.js"></script>
+<script src="js/recurring.js"></script>
+<script src="js/pages/accounts.js"></script>
+<script src="js/pages/investments.js"></script>
+<script src="js/pages/expenses.js"></script>
+<script src="js/pages/income.js"></script>
+<script src="js/pages/yearly.js"></script>
+<script src="js/pages/budget.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
