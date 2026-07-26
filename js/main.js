@@ -54,21 +54,25 @@
     els.monthSelect.value = state.month;
   }
 
-const menuToggle = document.getElementById('menuToggle');
-const navDrawer = document.getElementById('navDrawer');
-const navOverlay = document.getElementById('navOverlay');
-const mobileStatusDot = document.getElementById('mobileStatusDot');
+  const menuToggle = document.getElementById('menuToggle');
+  const navDrawer = document.getElementById('navDrawer');
+  const navOverlay = document.getElementById('navOverlay');
+  const mobileStatusDot = document.getElementById('mobileStatusDot');
 
-function closeMenu() {
-  navDrawer.classList.remove('open');
-  navOverlay.hidden = true;
-}
+  function closeMenu() {
+    navDrawer.classList.remove('open');
+    navOverlay.hidden = true;
+  }
 
-menuToggle.addEventListener('click', () => {
-  navDrawer.classList.toggle('open');
-  navOverlay.hidden = !navDrawer.classList.contains('open');
-});
-navOverlay.addEventListener('click', closeMenu);
+  menuToggle.addEventListener('click', () => {
+    navDrawer.classList.toggle('open');
+    navOverlay.hidden = !navDrawer.classList.contains('open');
+  });
+  navOverlay.addEventListener('click', closeMenu);
+
+  document.querySelectorAll('.nav-link').forEach(function(link) {
+    link.addEventListener('click', closeMenu);
+  });
 
   function renderCurrentPage() {
     const meta = PAGE_META[state.page];
