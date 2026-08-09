@@ -197,8 +197,10 @@ const ExpensesPage = (() => {
           <td><input type="text" class="edit-input" data-field="Notes" value="${escAttr(t.Notes)}" ${busy ? 'disabled' : ''}></td>
           <td class="num"><input type="number" step="0.01" class="edit-input num-input" data-field="Amount" value="${Number(t.Amount) || 0}" ${busy ? 'disabled' : ''}></td>
           <td class="actions-col">
-            <button class="row-save-btn" data-id="${id}" ${busy ? 'disabled' : ''}>${busy ? 'Saving…' : 'Save'}</button>
-            <button class="row-cancel-btn" data-id="${id}" ${busy ? 'disabled' : ''}>Cancel</button>
+            <div class="row-actions">
+              <button class="icon-btn save-btn row-save-btn" data-id="${id}" ${busy ? 'disabled' : ''} aria-label="${busy ? 'Saving' : 'Save'}" title="${busy ? 'Saving…' : 'Save'}">${busy ? '<span class="spinner"></span>' : Utils.ICONS.save}</button>
+              <button class="icon-btn cancel-btn row-cancel-btn" data-id="${id}" ${busy ? 'disabled' : ''} aria-label="Cancel" title="Cancel">${Utils.ICONS.cancel}</button>
+            </div>
           </td>
         </tr>`;
     }
@@ -212,8 +214,10 @@ const ExpensesPage = (() => {
         <td>${t.Notes || ''}</td>
         <td class="num">${Utils.fmtMoney(t.Amount)}</td>
         <td class="actions-col">
-          <button class="row-edit-btn" data-id="${id}" ${busy ? 'disabled' : ''}>Edit</button>
-          <button class="row-delete-btn" data-id="${id}" ${busy ? 'disabled' : ''}>${busy ? 'Deleting…' : 'Delete'}</button>
+          <div class="row-actions">
+            <button class="icon-btn edit-btn row-edit-btn" data-id="${id}" ${busy ? 'disabled' : ''} aria-label="Edit" title="Edit">${Utils.ICONS.edit}</button>
+            <button class="icon-btn delete-btn row-delete-btn" data-id="${id}" ${busy ? 'disabled' : ''} aria-label="${busy ? 'Deleting' : 'Delete'}" title="${busy ? 'Deleting…' : 'Delete'}">${busy ? '<span class="spinner"></span>' : Utils.ICONS.delete}</button>
+          </div>
         </td>
       </tr>`;
   }

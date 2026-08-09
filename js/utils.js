@@ -108,6 +108,17 @@ const Utils = (() => {
     annually: 'Yearly'
   };
 
+  // Small inline icon set for editable-table row actions (Expenses/Income).
+  // Same stroke style as the existing #balanceVisibilityIcon in index.html
+  // (viewBox 0 0 24 24, stroke=currentColor, stroke-width 1.8) so icon
+  // buttons read as part of the same visual language.
+  const ICONS = {
+    edit: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+    delete: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>',
+    save: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+    cancel: '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
+  };
+
   function frequencyLabel(item) {
     const freq = String(item.Frequency || '').toLowerCase().trim();
     if (freq === 'custom') {
@@ -222,7 +233,7 @@ const Utils = (() => {
 
   return {
     MONTH_NAMES, fmtMoney, fmtCompact, monthKeyOf, monthLabel, toDateInputValue,
-    buildMonthOptions, filterByMonth, sumBy, sortMapDesc, colorFor,
+    buildMonthOptions, filterByMonth, sumBy, sortMapDesc, colorFor, ICONS,
     paginate, renderPagination,
     frequencyLabel, computeNextOccurrence, monthlyEquivalent
   };

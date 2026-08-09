@@ -481,6 +481,70 @@ th {
 
 td.num, th.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
 
+/* ---------- Editable transaction rows (Expenses/Income tables) ---------- */
+
+.actions-col { width: 1%; white-space: nowrap; }
+
+.row-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+.icon-btn svg { display: block; }
+.icon-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent-dim); }
+.icon-btn:disabled { opacity: .5; cursor: default; }
+.icon-btn .spinner { margin-right: 0; }
+
+.icon-btn.edit-btn:hover:not(:disabled) { color: var(--accent); border-color: var(--accent); }
+.icon-btn.save-btn:hover:not(:disabled) { color: var(--income); border-color: var(--income); }
+.icon-btn.delete-btn:hover:not(:disabled),
+.icon-btn.cancel-btn:hover:not(:disabled) { color: var(--expense); border-color: var(--expense); }
+
+tr.editing-row td {
+  background: rgba(var(--accent-rgb), 0.06);
+  vertical-align: middle;
+}
+
+.edit-input {
+  width: 100%;
+  min-width: 96px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: inherit;
+}
+.edit-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.2);
+}
+.edit-input.num-input {
+  font-family: var(--font-mono);
+  text-align: right;
+  min-width: 90px;
+}
+.edit-input[type=number]::-webkit-outer-spin-button,
+.edit-input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.edit-input[type=number] { -moz-appearance: textfield; }
+
 .badge {
   display: inline-block;
   padding: 2px 8px;
