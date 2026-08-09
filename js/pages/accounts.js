@@ -7,6 +7,19 @@ const AccountsPage = (() => {
   let editingAccountId = null;   // account id currently open in the account modal, or null when adding
   let addingAccountType = null;  // 'Account' | 'Investment' — which section's "+ Add" was clicked
   let portfolioPrefix = null;    // investment prefix currently open in the portfolio-value modal
+  const ACCOUNT_TYPE_META = {
+    Cash:            { label: 'cash',         icon: '💵' },
+    eWallet:         { label: 'eWallet',      icon: '🪙' },
+    'Debit Card':    { label: 'debit card',   icon: '🏧' },
+    'Credit Card':   { label: 'credit card',  icon: '💳' },
+    'Physical Card': { label: 'card',         icon: '🎟️' },
+    Investment:      { label: 'investment',   icon: '📈' },
+    Account:         { label: 'account',      icon: '🏛️' }, // fallback
+  };
+
+  function accountTypeMeta(type) {
+    return ACCOUNT_TYPE_META[type] || ACCOUNT_TYPE_META.Account;
+  }
 
   const els = {};
 
@@ -339,13 +352,14 @@ const AccountsPage = (() => {
   function accountCardHtml(state, a) {
     const balance = runningBalance(state, a);
     const delta = balance - (Number(a.initialBalance) || 0);
+    const meta = accountTypeMeta(a.type); // CHANGED: new
 
     return `
       <div class="budget-card" data-id="${a.id}">
         <div class="budget-card-top">
           <div class="budget-card-title-wrap" data-action="edit-account" data-id="${a.id}" style="cursor:pointer;">
-            <div class="budget-card-title">${a.name}</div>
-            <div class="budget-card-sub muted">${a.prefix}</div>
+            <div class="budget-card-title">${meta.icon} ${a.name}</div>            <!-- CHANGED: was plain a.name -->
+            <div class="budget-card-sub muted">${a.prefix} · ${meta.label}</div>   <!-- CHANGED: added meta.label -->
           </div>
           <div class="budget-card-top-right">
             <button class="card-delete-btn" data-action="delete-account" data-id="${a.id}" title="Delete this account">✕</button>
@@ -404,12 +418,13 @@ const AccountsPage = (() => {
   function creditCardHtml(state, a) {
     const balance = runningBalance(state, a);
     const owed = Math.max(0, -balance);
+    const meta = accountTypeMeta(a.type);
 
     return `
       <div class="budget-card" data-id="${a.id}">
         <div class="budget-card-top">
           <div class="budget-card-title-wrap" data-action="edit-account" data-id="${a.id}" style="cursor:pointer;">
-            <div class="budget-card-title">💳 ${a.name}</div>
+            <div class="budget-card-title">${meta.icon} ${a.name}</div>
             <div class="budget-card-sub muted">${a.prefix}</div>
           </div>
           <div class="budget-card-top-right">
@@ -495,9 +510,12 @@ const AccountsPage = (() => {
     editingAccountId = item ? item.id : null;
     addingAccountType = item ? item.type : type;
 
-    const typeLabel = type === 'Investment' ? 'investment' : (type === 'Credit Card' ? 'credit card' : 'account');
+    const resolvedType = item ? item.type : type;
+    // CHANGED: was `type === 'Investment' ? 'investment' : (type === 'Credit Card' ? 'credit card' : 'account')`
+    const typeLabel = accountTypeMeta(resolvedType).label;
+
     els.accountTitle.textContent = item ? `Edit ${typeLabel}` : `Add ${typeLabel}`;
-    els.accountFormType.value = (item ? item.type : type) || 'Account';
+    els.accountFormType.value = resolvedType || 'Account';
     els.accountFormName.value = item ? item.name : '';
     els.accountFormPrefix.value = item ? item.prefix : '';
     els.accountFormInitialBalance.value = item ? item.initialBalance : '';

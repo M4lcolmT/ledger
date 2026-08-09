@@ -286,6 +286,11 @@ body.is-locked { overflow: hidden; }
   font-size: 13px;
 }
 
+.month-filter select option {
+  background: var(--surface-solid);
+  color: var(--text);
+}
+
 .error-banner {
   background: rgba(var(--expense-rgb), 0.12);
   border: 1px solid var(--expense);
@@ -363,6 +368,11 @@ body.is-locked { overflow: hidden; }
   padding: 6px 10px;
   border-radius: var(--radius);
   font-size: 13px;
+}
+
+.inline-select option, .page-size-filter select option {
+  background: var(--surface-solid);
+  color: var(--text);
 }
 
 .page-size-filter {
@@ -1104,6 +1114,11 @@ td.num, th.num { font-family: var(--font-mono); font-variant-numeric: tabular-nu
 }
 .modal-field input:focus,
 .modal-field select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.2); }
+
+.modal-field select option {
+  background: var(--surface-solid);
+  color: var(--text);
+}
 
 .modal-error {
   background: rgba(var(--expense-rgb), 0.12);
