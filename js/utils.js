@@ -42,6 +42,14 @@ const Utils = (() => {
     return `${MONTH_NAMES[month]} ${year}`;
   }
 
+  // yyyy-mm-dd for populating <input type="date"> when editing a transaction.
+  function toDateInputValue(timestamp) {
+    const d = new Date(timestamp);
+    if (isNaN(d)) return '';
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }
+
   // Builds the list of distinct year-month options present in transactions,
   // most recent first, plus an "All months" option.
   function buildMonthOptions(transactions) {
@@ -213,7 +221,7 @@ const Utils = (() => {
   }
 
   return {
-    MONTH_NAMES, fmtMoney, fmtCompact, monthKeyOf, monthLabel,
+    MONTH_NAMES, fmtMoney, fmtCompact, monthKeyOf, monthLabel, toDateInputValue,
     buildMonthOptions, filterByMonth, sumBy, sortMapDesc, colorFor,
     paginate, renderPagination,
     frequencyLabel, computeNextOccurrence, monthlyEquivalent

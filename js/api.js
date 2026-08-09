@@ -93,6 +93,16 @@ const Api = (() => {
     return data;
   }
 
+  // ---------- Transaction CRUD (used by the editable Expenses/Income tables) ----------
+
+  function updateTransaction(payload) {
+    return postAction('updateTransaction', payload);
+  }
+
+  function deleteTransaction(id) {
+    return postAction('deleteTransaction', { id });
+  }
+
   function addBudget(payload) {
     return postAction('addBudget', payload);
   }
@@ -129,6 +139,7 @@ const Api = (() => {
     getAll, addBudget, updateBudget, deleteBudget,
     addAccount, updateAccount, deleteAccount,
     savePortfolioEntry, deletePortfolioEntry,
+    updateTransaction, deleteTransaction,
     setPin
   };
 })();

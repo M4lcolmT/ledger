@@ -176,6 +176,13 @@
   const mobileRefreshBtn = document.getElementById('mobileRefreshBtn');
   mobileRefreshBtn.addEventListener('click', () => loadData(true));
 
+  // Exposed so page modules (e.g. ExpensesPage/IncomePage) can force a full
+  // reload after a table edit/delete — transactions affect balances, budget,
+  // and the yearly view too, so a targeted local patch isn't enough.
+  window.App = {
+    refreshData: () => loadData(true)
+  };
+
   // Don't fetch financial data until the PIN lock (if configured) is passed.
   AppLock.ready.then(() => loadData(false));
 })();

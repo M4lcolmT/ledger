@@ -8,6 +8,8 @@ const ExpensesPage = (() => {
   let sortField = 'Timestamp';
   let sortDir = 'desc'; // 'asc' | 'desc'
   let searchDebounceTimer = null;
+  let editingId = null;   // TransactionID currently in edit mode, or null
+  let rowBusy = null;     // TransactionID currently mid save/delete request
 
   function render(state) {
     currentExpenses = Utils.filterByMonth(state.transactions, state.month)
@@ -166,23 +168,121 @@ const ExpensesPage = (() => {
         <th data-field="Account">Account${sortIndicator('Account')}</th>
         <th>Notes</th>
         <th class="num" data-field="Amount">Amount${sortIndicator('Amount')}</th>
+        <th class="actions-col">Actions</th>
       </tr>`;
     bindSortHeaders(table);
 
-    table.querySelector('tbody').innerHTML = pageItems.map(t => `
-      <tr>
+    table.querySelector('tbody').innerHTML = pageItems.map(rowHtml).join('')
+      || `<tr><td colspan="7" class="muted">No expenses match your filters.</td></tr>`;
+
+    bindRowActions(table);
+
+    Utils.renderPagination(document.getElementById('expensePagination'), sorted.length, currentPage, pageSize, (p) => {
+      currentPage = p;
+      renderTable();
+    });
+  }
+
+  function rowHtml(t) {
+    const id = t.TransactionID;
+    const busy = id === rowBusy;
+
+    if (id === editingId) {
+      return `
+        <tr data-id="${id}" class="editing-row">
+          <td><input type="date" class="edit-input" data-field="Timestamp" value="${Utils.toDateInputValue(t.Timestamp)}" ${busy ? 'disabled' : ''}></td>
+          <td><input type="text" class="edit-input" data-field="Category" value="${escAttr(t.Category)}" ${busy ? 'disabled' : ''}></td>
+          <td><input type="text" class="edit-input" data-field="Subcategory" value="${escAttr(t.Subcategory)}" ${busy ? 'disabled' : ''}></td>
+          <td><input type="text" class="edit-input" data-field="Account" value="${escAttr(t.Account)}" ${busy ? 'disabled' : ''}></td>
+          <td><input type="text" class="edit-input" data-field="Notes" value="${escAttr(t.Notes)}" ${busy ? 'disabled' : ''}></td>
+          <td class="num"><input type="number" step="0.01" class="edit-input num-input" data-field="Amount" value="${Number(t.Amount) || 0}" ${busy ? 'disabled' : ''}></td>
+          <td class="actions-col">
+            <button class="row-save-btn" data-id="${id}" ${busy ? 'disabled' : ''}>${busy ? 'Saving…' : 'Save'}</button>
+            <button class="row-cancel-btn" data-id="${id}" ${busy ? 'disabled' : ''}>Cancel</button>
+          </td>
+        </tr>`;
+    }
+
+    return `
+      <tr data-id="${id}">
         <td>${new Date(t.Timestamp).toLocaleDateString()}</td>
         <td>${t.Category || ''}</td>
         <td>${t.Subcategory || ''}</td>
         <td>${t.Account || ''}</td>
         <td>${t.Notes || ''}</td>
         <td class="num">${Utils.fmtMoney(t.Amount)}</td>
-      </tr>`).join('') || `<tr><td colspan="6" class="muted">No expenses match your filters.</td></tr>`;
+        <td class="actions-col">
+          <button class="row-edit-btn" data-id="${id}" ${busy ? 'disabled' : ''}>Edit</button>
+          <button class="row-delete-btn" data-id="${id}" ${busy ? 'disabled' : ''}>${busy ? 'Deleting…' : 'Delete'}</button>
+        </td>
+      </tr>`;
+  }
 
-    Utils.renderPagination(document.getElementById('expensePagination'), sorted.length, currentPage, pageSize, (p) => {
-      currentPage = p;
-      renderTable();
+  function escAttr(v) {
+    return String(v == null ? '' : v).replace(/"/g, '&quot;');
+  }
+
+  function bindRowActions(table) {
+    table.querySelectorAll('.row-edit-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        editingId = btn.dataset.id;
+        renderTable();
+      });
     });
+
+    table.querySelectorAll('.row-cancel-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        editingId = null;
+        renderTable();
+      });
+    });
+
+    table.querySelectorAll('.row-save-btn').forEach(btn => {
+      btn.addEventListener('click', () => saveRow(btn.dataset.id, btn.closest('tr')));
+    });
+
+    table.querySelectorAll('.row-delete-btn').forEach(btn => {
+      btn.addEventListener('click', () => deleteRow(btn.dataset.id));
+    });
+  }
+
+  async function saveRow(id, rowEl) {
+    const payload = { id, transactionType: 'Expense' };
+    rowEl.querySelectorAll('[data-field]').forEach(input => {
+      const field = input.dataset.field;
+      if (field === 'Amount') payload.amount = Number(input.value) || 0;
+      else if (field === 'Timestamp') payload.timestamp = input.value; // yyyy-mm-dd
+      else payload[field.charAt(0).toLowerCase() + field.slice(1)] = input.value;
+    });
+
+    rowBusy = id;
+    renderTable();
+    try {
+      await Api.updateTransaction(payload);
+      editingId = null;
+      rowBusy = null;
+      await window.App.refreshData(); // transaction changes affect other pages too
+    } catch (err) {
+      rowBusy = null;
+      renderTable();
+      alert('Failed to save changes: ' + err.message);
+    }
+  }
+
+  async function deleteRow(id) {
+    if (!confirm('Delete this expense? This cannot be undone.')) return;
+
+    rowBusy = id;
+    renderTable();
+    try {
+      await Api.deleteTransaction(id);
+      rowBusy = null;
+      await window.App.refreshData();
+    } catch (err) {
+      rowBusy = null;
+      renderTable();
+      alert('Failed to delete: ' + err.message);
+    }
   }
 
   return { render };
