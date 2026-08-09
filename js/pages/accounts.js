@@ -2,6 +2,7 @@ const AccountsPage = (() => {
 
   let currentState = null;
   let currentCashAccounts = [];
+  let currentCreditCards = [];
   let currentInvestments = [];
   let editingAccountId = null;   // account id currently open in the account modal, or null when adding
   let addingAccountType = null;  // 'Account' | 'Investment' — which section's "+ Add" was clicked
@@ -48,6 +49,7 @@ const AccountsPage = (() => {
       btn.addEventListener('click', () => openAccountModal(btn.dataset.accountType, null));
     });
 
+    els.accountFormType.addEventListener('change', updateInitialBalanceConstraint);
     els.accountCancelBtn.addEventListener('click', closeAccountModal);
     els.accountOverlay.addEventListener('click', (e) => { if (e.target === els.accountOverlay) closeAccountModal(); });
     els.accountSaveBtn.addEventListener('click', handleSaveAccount);
@@ -98,7 +100,7 @@ const AccountsPage = (() => {
     btn.addEventListener('click', () => {
       localStorage.setItem(BALANCE_VISIBILITY_KEY, balancesVisible() ? 'false' : 'true');
       updateVisibilityToggleUI();
-      renderOverview(currentState, currentCashAccounts, currentInvestments, effectiveMonth(currentState));
+      renderOverview(currentState, currentCashAccounts, currentCreditCards, currentInvestments, effectiveMonth(currentState));
     });
   }
 
@@ -226,25 +228,35 @@ const AccountsPage = (() => {
     bindStaticListenersOnce();
 
     const accounts = state.accounts || [];
-    const cashAccounts = accounts.filter(a => a.type !== 'Investment');
+    const cashAccounts = accounts.filter(a => a.type !== 'Investment' && a.type !== 'Credit Card');
+    const creditCards = accounts.filter(a => a.type === 'Credit Card');
     const investments = accounts.filter(a => a.type === 'Investment');
     currentCashAccounts = cashAccounts;
+    currentCreditCards = creditCards;
     currentInvestments = investments;
     const month = effectiveMonth(state);
 
     bindVisibilityToggleOnce();
-    renderOverview(state, cashAccounts, investments, month);
+    renderOverview(state, cashAccounts, creditCards, investments, month);
     renderCashCards(state, cashAccounts);
+    renderCreditCards(state, creditCards);
     renderBalanceChart(state, cashAccounts);
   }
 
   // ---------- Overview stats ----------
 
-  function renderOverview(state, cashAccounts, investments, month) {
+  function renderOverview(state, cashAccounts, creditCards, investments, month) {
     const el = document.getElementById('accountsOverviewStats');
     if (!el) return;
 
     const totalCash = cashAccounts.reduce((s, a) => s + runningBalance(state, a), 0);
+
+    // A credit card's running balance goes negative as purchases accrue and
+    // back toward zero as repayment transfers land (see transferToAccount()
+    // in netForPrefix) — so "amount owed" is just the negative part of that,
+    // flipped positive for display. Nothing here mutates the original
+    // purchase transactions; the debt total is purely computed each render.
+    const totalOwed = creditCards.reduce((s, a) => s + Math.max(0, -runningBalance(state, a)), 0);
 
     let totalPortfolioValue = 0;
     investments.forEach(a => {
@@ -252,7 +264,7 @@ const AccountsPage = (() => {
       totalPortfolioValue += entry ? entry.value : runningBalance(state, a);
     });
 
-    const netWorth = totalCash + totalPortfolioValue;
+    const netWorth = totalCash + totalPortfolioValue - totalOwed;
     const visible = balancesVisible();
 
     el.innerHTML = `
@@ -260,10 +272,15 @@ const AccountsPage = (() => {
         <div class="label">Cash &amp; bank balance</div>
         <div class="value ${visible ? '' : 'masked'}">${displayMoney(totalCash)}</div>
       </div>
+      ${creditCards.length ? `
+      <div class="stat-card">
+        <div class="label">Credit card debt</div>
+        <div class="value ${visible ? 'negative' : 'masked'}">${displayMoney(totalOwed)}</div>
+      </div>` : ''}
       <div class="stat-card">
         <div class="label">Net worth</div>
         <div class="value ${visible ? 'positive' : 'masked'}">${displayMoney(netWorth)}</div>
-        <div class="value-sub">Cash + investments</div>
+        <div class="value-sub">Cash + investments − credit card debt</div>
       </div>
       <div class="stat-card">
         <div class="label">Accounts</div>
@@ -354,6 +371,60 @@ const AccountsPage = (() => {
       </div>`;
   }
 
+  // ---------- Credit card cards ----------
+  //
+  // A repayment is just a Transfer with To Account = this card's prefix
+  // (see budget/expense entry app) — it's netted by runningBalance() the
+  // same way a normal transfer is, via transferToAccount(). Purchases are
+  // ordinary Expense transactions against the card's prefix, so they're
+  // never deleted or modified; "amount owed" is a computed view over both,
+  // which is why it naturally drops to zero once repayments catch up.
+
+  function renderCreditCards(state, creditCards) {
+    const cardsEl = document.getElementById('accountCardsCredit');
+    const totalsEl = document.getElementById('accountsTotalsCredit');
+    if (!cardsEl) return;
+
+    if (!creditCards.length) {
+      cardsEl.innerHTML = `<div class="muted">No credit cards yet — click "+ Add credit card" to set one up.</div>`;
+      if (totalsEl) totalsEl.innerHTML = '';
+      return;
+    }
+
+    const sorted = creditCards.slice().sort((a, b) =>
+      Math.max(0, -runningBalance(state, b)) - Math.max(0, -runningBalance(state, a))
+    );
+    cardsEl.innerHTML = sorted.map(a => creditCardHtml(state, a)).join('');
+    bindCardListeners(cardsEl);
+
+    const totalOwed = creditCards.reduce((s, a) => s + Math.max(0, -runningBalance(state, a)), 0);
+    if (totalsEl) totalsEl.innerHTML = `<span>Total owed: <b>${Utils.fmtMoney(totalOwed)}</b></span>`;
+  }
+
+  function creditCardHtml(state, a) {
+    const balance = runningBalance(state, a);
+    const owed = Math.max(0, -balance);
+
+    return `
+      <div class="budget-card" data-id="${a.id}">
+        <div class="budget-card-top">
+          <div class="budget-card-title-wrap" data-action="edit-account" data-id="${a.id}" style="cursor:pointer;">
+            <div class="budget-card-title">💳 ${a.name}</div>
+            <div class="budget-card-sub muted">${a.prefix}</div>
+          </div>
+          <div class="budget-card-top-right">
+            <button class="card-delete-btn" data-action="delete-account" data-id="${a.id}" title="Delete this card">✕</button>
+          </div>
+        </div>
+        <div class="budget-card-amounts">
+          <div class="amount-block">
+            <span class="label">Amount owed</span>
+            <span class="value ${owed > 0 ? 'negative' : 'positive'}">${Utils.fmtMoney(owed)}</span>
+          </div>
+        </div>
+      </div>`;
+  }
+
   // ---------- Shared card listeners (used by both Accounts and Investments cards) ----------
 
   function bindCardListeners(cardsEl) {
@@ -424,7 +495,8 @@ const AccountsPage = (() => {
     editingAccountId = item ? item.id : null;
     addingAccountType = item ? item.type : type;
 
-    els.accountTitle.textContent = item ? 'Edit account' : (type === 'Investment' ? 'Add investment' : 'Add account');
+    const typeLabel = type === 'Investment' ? 'investment' : (type === 'Credit Card' ? 'credit card' : 'account');
+    els.accountTitle.textContent = item ? `Edit ${typeLabel}` : `Add ${typeLabel}`;
     els.accountFormType.value = (item ? item.type : type) || 'Account';
     els.accountFormName.value = item ? item.name : '';
     els.accountFormPrefix.value = item ? item.prefix : '';
@@ -433,7 +505,24 @@ const AccountsPage = (() => {
     els.accountError.hidden = true;
     els.accountError.textContent = '';
 
+    updateInitialBalanceConstraint();
     els.accountOverlay.hidden = false;
+  }
+
+  // Credit cards are the one account type allowed to start with a negative
+  // initial balance — that's how existing debt (money already owed before
+  // you started tracking it) is represented, since runningBalance() treats
+  // purchases as subtracting and repayments as adding back. Every other
+  // account type keeps the "can't start negative" rule.
+  function updateInitialBalanceConstraint() {
+    const isCreditCard = els.accountFormType.value === 'Credit Card';
+    els.accountFormInitialBalance.min = isCreditCard ? '' : '0';
+    const note = document.querySelector('.account-modal-note');
+    if (note) {
+      note.textContent = isCreditCard
+        ? 'Prefix must match the exact "Account" value used in Transactions, or "From/To Account" in Transfers. If you already owe money on this card, enter that amount as negative (e.g. -500).'
+        : 'Prefix must match the exact "Account" value used in Transactions, or "From/To Account" in Transfers, so balances update automatically.';
+    }
   }
 
   function closeAccountModal() {
@@ -451,7 +540,7 @@ const AccountsPage = (() => {
       showAccountModalError('Name and prefix are both required.');
       return;
     }
-    if (initialBalance < 0) {
+    if (initialBalance < 0 && type !== 'Credit Card') {
       showAccountModalError('Initial balance can\'t be negative.');
       return;
     }
